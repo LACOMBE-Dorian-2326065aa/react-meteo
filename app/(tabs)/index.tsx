@@ -1,7 +1,15 @@
 import { StyleSheet, View, Text, ScrollView } from 'react-native';
-import MapView from 'react-native-maps';
+import MapView, {Marker} from 'react-native-maps';
+import {useState} from "react";
 
 export default function HomeScreen() {
+    const [selectedCoordinate, setSelectedCoordinate] = useState(null);
+
+    const handleMapPress = (event: { nativeEvent: { coordinate: any; }; }) => {
+        const { coordinate } = event.nativeEvent;
+        setSelectedCoordinate(coordinate);
+    };
+
     return (
         <View style={styles.container}>
             <View style={styles.header}>
@@ -18,7 +26,15 @@ export default function HomeScreen() {
                             latitudeDelta: 0.0922,
                             longitudeDelta: 0.0421,
                         }}
-                    />
+                        onPress={handleMapPress}
+                    >
+                        {selectedCoordinate && (
+                            <Marker
+                                coordinate={selectedCoordinate}
+                                title="Position sélectionnée"
+                            />
+                        )}
+                    </MapView>
                 </View>
             </ScrollView>
         </View>
@@ -45,7 +61,7 @@ const styles = StyleSheet.create({
         padding: 16,
     },
     mapContainer: {
-        height: 300,
+        height: 400,
         borderRadius: 12,
         overflow: 'hidden',
         marginBottom: 20,

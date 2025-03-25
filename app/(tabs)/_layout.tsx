@@ -30,21 +30,21 @@ export default function TabLayout() {
             name="index"
             options={{
                 title: 'Carte',
-                tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+                tabBarIcon: ({ color }) => <IconSymbol size={28} name="map.fill" color={color} />,
             }}
         />
         <Tabs.Screen
             name="villes"
             options={{
-                title: 'Villes',
-                tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+                title: 'Villes enregistrées',
+                tabBarIcon: ({ color }) => <IconSymbol size={28} name="list.bullet.rectangle.fill" color={color} />,
             }}
         />
       <Tabs.Screen
         name="explore"
         options={{
           title: 'Position actuelle',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="location.fill" color={color} />,
         }}
       />
     </Tabs>
