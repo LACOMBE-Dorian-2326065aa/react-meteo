@@ -13,6 +13,18 @@ const MAPPING = {
   'paperplane.fill': 'send',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
+
+  // Nouveaux mappings pour vos besoins
+  'map.fill': 'map',          // Icône de carte
+  'building.2.fill': 'apartment', // Icône pour "Villes"
+  'location.fill': 'my-location', // Icône de position
+
+  // Autres mappings utiles
+  'chevron.left': 'chevron-left',
+  'gear': 'settings',
+  'bookmark.fill': 'bookmark', // Icône standard
+  'building.fill': 'location-city', // Meilleure option pour villes
+  'list.bullet.rectangle.fill': 'format-list-bulleted' // Pour une liste de villes
 } as Partial<
   Record<
     import('expo-symbols').SymbolViewProps['name'],
