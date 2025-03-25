@@ -29,7 +29,7 @@ export default function TabLayout() {
         <Tabs.Screen
             name="index"
             options={{
-                title: 'Position actuelle',
+                title: 'Carte',
                 tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
             }}
         />
@@ -43,7 +43,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="explore"
         options={{
-          title: 'Carte',
+          title: 'Position actuelle',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
         }}
       />
