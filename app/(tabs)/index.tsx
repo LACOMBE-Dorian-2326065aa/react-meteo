@@ -1,6 +1,7 @@
 import { StyleSheet, View, Text, ScrollView } from 'react-native';
 import MapView, {Marker} from 'react-native-maps';
 import {useState} from "react";
+import savedLocations from '@/assets/json/saved-locations.json';
 
 export default function HomeScreen() {
     const [selectedCoordinate, setSelectedCoordinate] = useState(null);
@@ -28,6 +29,13 @@ export default function HomeScreen() {
                         }}
                         onPress={handleMapPress}
                     >
+                        {savedLocations.map((location: any, index: any) => (
+                            <Marker
+                                key={index}
+                                coordinate={{ latitude: location.latitude, longitude: location.longitude }}
+                                title={location.name}
+                            />
+                        ))}
                         {selectedCoordinate && (
                             <Marker
                                 coordinate={selectedCoordinate}
