@@ -36,6 +36,9 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "OPENWEATHERMAP_API_KEY": "1c856f19750baa7aac089533da337ecb"
     }
   }
 }
