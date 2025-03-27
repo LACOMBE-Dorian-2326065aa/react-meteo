@@ -1,4 +1,4 @@
-import { StyleSheet, View, Text, ScrollView, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, Dimensions, TouchableOpacity } from 'react-native';
 import MapView, {Marker} from 'react-native-maps';
 import {useEffect, useState} from "react";
 import axios from 'axios';
@@ -6,6 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { LineChart } from 'react-native-chart-kit';
 import { Button } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 
 let initialLocations = require('@/assets/json/saved-locations.json');
 
@@ -13,20 +14,29 @@ export default function HomeScreen() {
     const [selectedCoordinate, setSelectedCoordinate] = useState<any>(null);
     const [weatherData, setWeatherData] = useState<any>(null)
     const [savedLocations, setSavedLocations] = useState<any[]>(initialLocations);
-
-    useEffect(() => {
-        const loadSavedLocations = async () => {
-            try {
-                const saved = await AsyncStorage.getItem('savedLocations');
-                if (saved) {
-                    const parsed = JSON.parse(saved);
-                    setSavedLocations([...initialLocations, ...parsed]);
-                }
-            } catch (error) {
-                console.error('Erreur de chargement:', error);
-            }
-        };
+    
+    // Refresh function to reset state and data
+    const refreshPage = () => {
+        setSelectedCoordinate(null);
+        setWeatherData(null);
         loadSavedLocations();
+    };
+    
+    const loadSavedLocations = async () => {
+        try {
+            const saved = await AsyncStorage.getItem('savedLocations');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                setSavedLocations([...initialLocations, ...parsed]);
+            }
+        } catch (error) {
+            console.error('Erreur de chargement:', error);
+        }
+    };
+
+    // Refresh on component mount
+    useEffect(() => {
+        refreshPage();
     }, []);
 
     const saveLocation = async (coordinate: any, locationName: string) => {
@@ -126,6 +136,12 @@ export default function HomeScreen() {
             >
                 <View style={styles.header}>
                     <Text style={styles.title}>MétéOù</Text>
+                    <TouchableOpacity 
+                        style={styles.refreshButton} 
+                        onPress={refreshPage}
+                    >
+                        <Ionicons name="refresh" size={24} color="white" />
+                    </TouchableOpacity>
                 </View>
 
                 <ScrollView contentContainerStyle={styles.content}>
@@ -281,6 +297,9 @@ const styles = StyleSheet.create({
     header: {
         paddingVertical: 20,
         alignItems: 'center',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
     },
     title: {
         fontSize: 24,
@@ -288,12 +307,18 @@ const styles = StyleSheet.create({
         color: 'white',
         paddingTop: 40
     },
+    refreshButton: {
+        padding: 10,
+        position: 'absolute',
+        right: 16,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        borderRadius: 20,
+    },
     content: {
         padding: 16,
     },
     gradient: {
         flex: 1,
-        padding: 1,
     },
     mapContainer: {
         height: 400,

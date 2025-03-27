@@ -1,9 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, FlatList, ScrollView, Alert } from 'react-native';
+import { 
+    StyleSheet, 
+    View, 
+    Text, 
+    TouchableOpacity, 
+    FlatList, 
+    ScrollView, 
+    Alert, 
+    RefreshControl,
+    ActivityIndicator 
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import savedLocationsData from '@/assets/json/saved-locations.json';
+import { Ionicons } from '@expo/vector-icons';
 
 interface SavedLocation {
     name: string;
@@ -14,12 +25,20 @@ interface SavedLocation {
 export default function SavedLocationsScreen() {
     const [savedLocations, setSavedLocations] = useState<SavedLocation[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
 
+    // Load saved locations on initial mount
     useEffect(() => {
-        // Load saved locations from both JSON file and AsyncStorage
         loadSavedLocations();
     }, []);
     
+    // Also reload when the screen comes back into focus
+    useFocusEffect(
+        React.useCallback(() => {
+            loadSavedLocations();
+        }, [])
+    );
+
     const loadSavedLocations = async () => {
         try {
             setIsLoading(true);
@@ -47,7 +66,13 @@ export default function SavedLocationsScreen() {
             Alert.alert("Erreur", "Impossible de charger les emplacements sauvegardés.");
         } finally {
             setIsLoading(false);
+            setRefreshing(false);
         }
+    };
+
+    const handleRefresh = () => {
+        setRefreshing(true);
+        loadSavedLocations();
     };
 
     const handleAddNewLocation = () => {
@@ -55,7 +80,15 @@ export default function SavedLocationsScreen() {
     };
 
     const handleSelectLocation = (location: SavedLocation) => {
-        Alert.alert('Location Selected', `${location.name}\nLat: ${location.latitude}, Lon: ${location.longitude}`);
+        // Navigate to the home screen with the selected location
+        router.push({
+            pathname: '/',
+            params: { 
+                latitude: location.latitude.toString(), 
+                longitude: location.longitude.toString(),
+                name: location.name 
+            }
+        });
     };
     
     const handleDeleteLocation = async (location: SavedLocation) => {
@@ -125,9 +158,28 @@ export default function SavedLocationsScreen() {
             >
                 <View style={styles.header}>
                     <Text style={styles.title}>MétéOù</Text>
+                    <TouchableOpacity 
+                        style={styles.refreshButton}
+                        onPress={handleRefresh}
+                        disabled={isLoading || refreshing}
+                    >
+                        <Ionicons name="refresh" size={24} color="white" />
+                    </TouchableOpacity>
                 </View>
 
-                <ScrollView contentContainerStyle={styles.content}>
+                <ScrollView 
+                    contentContainerStyle={styles.content}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={handleRefresh}
+                            colors={["#ffffff"]}
+                            tintColor="#ffffff"
+                            title="Actualisation..."
+                            titleColor="#ffffff"
+                        />
+                    }
+                >
                     <Text style={styles.sectionTitle}>Villes Enregistrées</Text>
                     
                     <TouchableOpacity 
@@ -138,7 +190,7 @@ export default function SavedLocationsScreen() {
                     </TouchableOpacity>
 
                     {isLoading ? (
-                        <Text style={styles.emptyText}>Chargement des villes...</Text>
+                        <ActivityIndicator size="large" color="#FFFFFF" style={styles.loader} />
                     ) : savedLocations.length === 0 ? (
                         <Text style={styles.emptyText}>Aucune ville enregistrée</Text>
                     ) : (
@@ -164,15 +216,26 @@ const styles = StyleSheet.create({
     header: {
         paddingVertical: 20,
         alignItems: 'center',
+        flexDirection: 'row',
+        justifyContent: 'center',
+        paddingTop: 40,
+        paddingHorizontal: 20,
     },
     title: {
         fontSize: 24,
         fontWeight: 'bold',
         color: 'white',
-        paddingTop: 40
+    },
+    refreshButton: {
+        position: 'absolute',
+        right: 20,
+        top: 40,
+        padding: 8,
+        borderRadius: 20,
     },
     content: {
         padding: 16,
+        paddingBottom: 40,
     },
     gradient: {
         flex: 1,
@@ -234,4 +297,7 @@ const styles = StyleSheet.create({
         marginTop: 5,
         textAlign: 'right'
     },
+    loader: {
+        marginTop: 30
+    }
 });
