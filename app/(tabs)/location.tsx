@@ -37,12 +37,21 @@ export default function LocationScreen() {
                         accuracy: pos.coords.accuracy,
                     });
                 },
+
                 (err) => setError(err.message),
                 { enableHighAccuracy: true, timeout: 15000 }
             );
         } catch (error) {
             return;
         }
+        const checkPermissions = async () => {
+            const result = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+            console.log('Permission check result:', result);
+        };
+
+        useEffect(() => {
+            checkPermissions();
+        }, []);
     };
 
     useEffect(() => {
@@ -55,7 +64,7 @@ export default function LocationScreen() {
                 <View style={styles.coordinatesContainer}>
                     <Text style={styles.text}>Latitude: {position.latitude.toFixed(6)}</Text>
                     <Text style={styles.text}>Longitude: {position.longitude.toFixed(6)}</Text>
-                    <Text style={styles.text}>Précision: {position.accuracy}m</Text>
+                    <Text style={styles.text}>Précision: {position.accuracy}</Text>
                 </View>
             ) : (
                 <Text style={styles.loading}>Chargement de la position...</Text>
