@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, FlatList, ScrollView, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import savedLocationsData from '@/assets/json/saved-locations.json';
 
 interface SavedLocation {
@@ -12,31 +13,107 @@ interface SavedLocation {
 
 export default function SavedLocationsScreen() {
     const [savedLocations, setSavedLocations] = useState<SavedLocation[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        // Load saved locations from JSON file
-        // In a real app, this would be loaded from AsyncStorage or a database
-        setSavedLocations(savedLocationsData);
+        // Load saved locations from both JSON file and AsyncStorage
+        loadSavedLocations();
     }, []);
+    
+    const loadSavedLocations = async () => {
+        try {
+            setIsLoading(true);
+            
+            // Get saved locations from AsyncStorage
+            const savedLocationsStr = await AsyncStorage.getItem('savedLocations');
+            const asyncStorageLocations = savedLocationsStr ? JSON.parse(savedLocationsStr) : [];
+            
+            // Combine with default locations from JSON file, avoiding duplicates
+            const combinedLocations = [...savedLocationsData];
+            
+            asyncStorageLocations.forEach((location: SavedLocation) => {
+                const isDuplicate = combinedLocations.some(
+                    loc => loc.latitude === location.latitude && loc.longitude === location.longitude
+                );
+                
+                if (!isDuplicate) {
+                    combinedLocations.push(location);
+                }
+            });
+            
+            setSavedLocations(combinedLocations);
+        } catch (error) {
+            console.error('Erreur de chargement:', error);
+            Alert.alert("Erreur", "Impossible de charger les emplacements sauvegardés.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     const handleAddNewLocation = () => {
-        // Navigate to the search cities screen
         router.push('/villes');
     };
 
     const handleSelectLocation = (location: SavedLocation) => {
-        // In a real app, you might want to do something when a location is selected
         Alert.alert('Location Selected', `${location.name}\nLat: ${location.latitude}, Lon: ${location.longitude}`);
+    };
+    
+    const handleDeleteLocation = async (location: SavedLocation) => {
+        try {
+            // Check if it's a default location from JSON file
+            const isDefaultLocation = savedLocationsData.some(
+                loc => loc.latitude === location.latitude && loc.longitude === location.longitude
+            );
+            
+            if (isDefaultLocation) {
+                Alert.alert("Information", "Les emplacements par défaut ne peuvent pas être supprimés.");
+                return;
+            }
+            
+            Alert.alert(
+                "Confirmation",
+                `Voulez-vous supprimer ${location.name} de vos favoris ?`,
+                [
+                    { text: "Annuler", style: "cancel" },
+                    {
+                        text: "Supprimer",
+                        style: "destructive",
+                        onPress: async () => {
+                            // Get current saved locations
+                            const savedLocationsStr = await AsyncStorage.getItem('savedLocations');
+                            const currentLocations = savedLocationsStr ? JSON.parse(savedLocationsStr) : [];
+                            
+                            // Filter out the selected location
+                            const updatedLocations = currentLocations.filter(
+                                (loc: SavedLocation) => 
+                                    loc.latitude !== location.latitude || loc.longitude !== location.longitude
+                            );
+                            
+                            // Save updated list
+                            await AsyncStorage.setItem('savedLocations', JSON.stringify(updatedLocations));
+                            
+                            // Refresh the list
+                            loadSavedLocations();
+                        }
+                    }
+                ]
+            );
+        } catch (error) {
+            console.error('Erreur de suppression:', error);
+            Alert.alert("Erreur", "Impossible de supprimer cet emplacement.");
+        }
     };
 
     const renderLocationItem = ({ item }: { item: SavedLocation }) => (
         <TouchableOpacity 
             style={styles.locationItem}
             onPress={() => handleSelectLocation(item)}
+            onLongPress={() => handleDeleteLocation(item)}
         >
             <Text style={styles.locationName}>{item.name}</Text>
             <Text style={styles.coordinates}>Latitude: {item.latitude}</Text>
             <Text style={styles.coordinates}>Longitude: {item.longitude}</Text>
+            <Text style={styles.hintText}>Appuyez longuement pour supprimer</Text>
         </TouchableOpacity>
     );
 
@@ -60,13 +137,15 @@ export default function SavedLocationsScreen() {
                         <Text style={styles.addButtonText}>+ Ajouter une nouvelle ville</Text>
                     </TouchableOpacity>
 
-                    {savedLocations.length === 0 ? (
+                    {isLoading ? (
+                        <Text style={styles.emptyText}>Chargement des villes...</Text>
+                    ) : savedLocations.length === 0 ? (
                         <Text style={styles.emptyText}>Aucune ville enregistrée</Text>
                     ) : (
                         <FlatList
                             data={savedLocations}
                             renderItem={renderLocationItem}
-                            keyExtractor={(item, index) => `${item.name}-${item.latitude}-${item.longitude}`}
+                            keyExtractor={(item, index) => `${item.name}-${item.latitude}-${item.longitude}-${index}`}
                             style={styles.list}
                             scrollEnabled={false}
                         />
@@ -147,5 +226,12 @@ const styles = StyleSheet.create({
         marginTop: 20,
         color: 'rgba(255,255,255,0.7)',
         fontSize: 16
+    },
+    hintText: {
+        fontSize: 12,
+        color: 'rgba(255,255,255,0.6)',
+        fontStyle: 'italic',
+        marginTop: 5,
+        textAlign: 'right'
     },
 });
