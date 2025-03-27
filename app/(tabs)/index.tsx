@@ -1,14 +1,58 @@
 import { StyleSheet, View, Text, ScrollView, Dimensions } from 'react-native';
 import MapView, {Marker} from 'react-native-maps';
-import {useState} from "react";
-import savedLocations from '@/assets/json/saved-locations.json';
+import {useEffect, useState} from "react";
 import axios from 'axios';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LineChart } from 'react-native-chart-kit';
+import { Button } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+let initialLocations = require('@/assets/json/saved-locations.json');
 
 export default function HomeScreen() {
     const [selectedCoordinate, setSelectedCoordinate] = useState<any>(null);
-    const [weatherData, setWeatherData] = useState<any>(null);
+    const [weatherData, setWeatherData] = useState<any>(null)
+    const [savedLocations, setSavedLocations] = useState<any[]>(initialLocations);
+
+    useEffect(() => {
+        const loadSavedLocations = async () => {
+            try {
+                const saved = await AsyncStorage.getItem('savedLocations');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    setSavedLocations([...initialLocations, ...parsed]);
+                }
+            } catch (error) {
+                console.error('Erreur de chargement:', error);
+            }
+        };
+        loadSavedLocations();
+    }, []);
+
+    const saveLocation = async (coordinate: any, locationName: string) => {
+        if (!coordinate || !locationName) return;
+
+        const newLocation = {
+            name: locationName,
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude,
+        };
+
+        try {
+            const updatedLocations = [...savedLocations, newLocation];
+            setSavedLocations(updatedLocations);
+
+            await AsyncStorage.setItem(
+                'savedLocations',
+                JSON.stringify(updatedLocations.filter(loc => !initialLocations.includes(loc)))
+            );
+
+            alert('Position enregistrée avec succès !');
+        } catch (error) {
+            console.error('Erreur de sauvegarde:', error);
+            alert('Erreur lors de la sauvegarde');
+        }
+    };
 
     const handleMapPress = async (event: { nativeEvent: { coordinate: any; }; }) => {
         const { coordinate } = event.nativeEvent;
@@ -35,21 +79,20 @@ export default function HomeScreen() {
 
     const getValueColor = (value: number, type: 'temp' | 'humidity') => {
         if (type === 'temp') {
-            if (value < 10) return '#2196F3'; // Bleu pour froid
-            if (value > 25) return '#FF5252'; // Rouge pour chaud
-            return '#FFFFFF'; // Blanc pour températures modérées
+            if (value < 10) return '#2196F3';
+            if (value > 25) return '#FF5252';
+            return '#000';
         }
 
         if (type === 'humidity') {
-            if (value < 30) return '#FF5252'; // Rouge pour sec
-            if (value > 70) return '#2196F3'; // Bleu pour humide
-            return '#FFFFFF'; // Blanc pour humidité normale
+            if (value < 30) return '#FF5252';
+            if (value > 70) return '#2196F3';
+            return '#000';
         }
 
-        return '#FFFFFF'; // Couleur par défaut
+        return '#000';
     };
 
-    // Préparer les données pour le graphique
     const prepareChartData = () => {
         if (!weatherData?.forecast) return null;
 
@@ -117,22 +160,51 @@ export default function HomeScreen() {
                         <View style={styles.weatherContainer}>
                             <Text style={styles.sectionTitle}>{weatherData.current.name}</Text>
                             <View style={styles.weatherDescription}>
-                                <Text style={styles.weatherDescriptionElement}>
-                                    Température : 
-                                    <Text style={{ color: getValueColor(weatherData.current.main.temp, 'temp') }}>
-                                        {weatherData.current.main.temp}°C
+                                <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 8}}>
+                                    <Text style={[styles.weatherDescriptionElement, {flex: 1}]}>Température :</Text>
+                                    <View style={{
+                                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                                        borderRadius: 16,
+                                        paddingHorizontal: 12,
+                                        paddingVertical: 4
+                                    }}>
+                                        <Text style={{
+                                            color: getValueColor(weatherData.current.main.temp, 'temp'),
+                                            fontWeight: '800',
+                                            fontSize: 16
+                                        }}>
+                                            {Math.round(weatherData.current.main.temp)}°C
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 8}}>
+                                    <Text style={[styles.weatherDescriptionElement, {flex: 1}]}>Conditions :</Text>
+                                    <Text style={[styles.weatherDescriptionElement, {fontWeight: '600'}]}>
+                                        {weatherData.current.weather[0].description.charAt(0).toUpperCase() +
+                                            weatherData.current.weather[0].description.slice(1)}
                                     </Text>
-                                </Text>
-                                <Text style={styles.weatherDescriptionElement}>
-                                    Conditions : {weatherData.current.weather[0].description.charAt(0).toUpperCase() + weatherData.current.weather[0].description.slice(1)}
-                                </Text>
-                                <Text style={styles.weatherDescriptionElement}>
-                                    Humidité : 
-                                    <Text style={{ color: getValueColor(weatherData.current.main.humidity, 'humidity') }}>
-                                        {weatherData.current.main.humidity}%
-                                    </Text>
-                                </Text>
+                                </View>
+
+                                <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                                    <Text style={[styles.weatherDescriptionElement, {flex: 1}]}>Humidité :</Text>
+                                    <View style={{
+                                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                                        borderRadius: 16,
+                                        paddingHorizontal: 12,
+                                        paddingVertical: 4
+                                    }}>
+                                        <Text style={{
+                                            color: getValueColor(weatherData.current.main.humidity, 'humidity'),
+                                            fontWeight: '800',
+                                            fontSize: 16
+                                        }}>
+                                            {weatherData.current.main.humidity}%
+                                        </Text>
+                                    </View>
+                                </View>
                             </View>
+                            <Button title="Enregistrer la position" onPress={() => saveLocation(selectedCoordinate, weatherData.current.name)} />
 
                             <Text style={styles.sectionTitle}>Prévisions sur 24h</Text>
 
@@ -242,7 +314,8 @@ const styles = StyleSheet.create({
     },
     weatherDescriptionElement: {
         color: '#fff',
-        lineHeight: 30,
+        fontSize: 16,
+        lineHeight: 24,
     },
     sectionTitle: {
         fontSize: 20,
