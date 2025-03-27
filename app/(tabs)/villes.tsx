@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, ActivityIndicator, FlatList, ScrollView, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface City {
     name: string;
@@ -53,26 +54,42 @@ export default function VillesScreen() {
         }
     };
 
-    const saveLocation = (city: City) => {
-        // In a real app, this would save to AsyncStorage or a database
-        // For now, we'll show an alert to simulate the action
-        Alert.alert(
-            "Ajouter cette ville",
-            `Voulez-vous ajouter ${city.name} à vos emplacements sauvegardés?`,
-            [
-                {
-                    text: "Annuler",
-                    style: "cancel"
-                },
-                {
-                    text: "Oui",
-                    onPress: () => {
-                        Alert.alert("Succès", `${city.name} a été ajouté à vos emplacements sauvegardés.`);
-                        router.back();
-                    }
-                }
-            ]
-        );
+    const saveLocation = async (city: City) => {
+        try {
+            // Format city data to match the format used in other parts of the app
+            const newLocation = {
+                name: city.name,
+                latitude: city.lat,
+                longitude: city.lon
+            };
+
+            // Get existing saved locations
+            const savedLocationsStr = await AsyncStorage.getItem('savedLocations');
+            const savedLocations = savedLocationsStr ? JSON.parse(savedLocationsStr) : [];
+            
+            // Check if city already exists to avoid duplicates
+            const cityExists = savedLocations.some(
+                (loc: any) => loc.latitude === city.lat && loc.longitude === city.lon
+            );
+            
+            if (cityExists) {
+                Alert.alert("Information", "Cette ville est déjà dans vos favoris.");
+                return;
+            }
+
+            // Add new location and save
+            const updatedLocations = [...savedLocations, newLocation];
+            await AsyncStorage.setItem('savedLocations', JSON.stringify(updatedLocations));
+            
+            Alert.alert(
+                "Succès", 
+                `${city.name} a été ajouté à vos emplacements sauvegardés.`,
+                [{ text: "OK", onPress: () => router.back() }]
+            );
+        } catch (error) {
+            console.error('Erreur de sauvegarde:', error);
+            Alert.alert("Erreur", "Impossible de sauvegarder cette ville.");
+        }
     };
 
     const renderCityItem = ({ item }: { item: City }) => (

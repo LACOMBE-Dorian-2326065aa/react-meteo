@@ -1,63 +1,103 @@
-import { StyleSheet, View, Text, ScrollView, Dimensions } from 'react-native';
-import MapView, {Marker} from 'react-native-maps';
-import {useEffect, useState} from "react";
+import { StyleSheet, View, Text, ScrollView, Dimensions, TouchableOpacity, Image } from 'react-native';
+import MapView, { Marker } from 'react-native-maps';
+import { useEffect, useState, useRef } from "react";
 import axios from 'axios';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LineChart } from 'react-native-chart-kit';
 import { Button } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams } from 'expo-router';
 
 let initialLocations = require('@/assets/json/saved-locations.json');
 
+interface LocationWeather {
+    [key: string]: {
+        icon: string;
+        temp: number;
+    };
+}
+
 export default function HomeScreen() {
     const [selectedCoordinate, setSelectedCoordinate] = useState<any>(null);
-    const [weatherData, setWeatherData] = useState<any>(null)
+    const [weatherData, setWeatherData] = useState<any>(null);
     const [savedLocations, setSavedLocations] = useState<any[]>(initialLocations);
+    const [locationsWeather, setLocationsWeather] = useState<LocationWeather>({});
+    const mapRef = useRef<MapView>(null);
+    const params = useLocalSearchParams();
 
-    useEffect(() => {
-        const loadSavedLocations = async () => {
-            try {
-                const saved = await AsyncStorage.getItem('savedLocations');
-                if (saved) {
-                    const parsed = JSON.parse(saved);
-                    setSavedLocations([...initialLocations, ...parsed]);
-                }
-            } catch (error) {
-                console.error('Erreur de chargement:', error);
-            }
-        };
+    const refreshPage = () => {
+        setSelectedCoordinate(null);
+        setWeatherData(null);
         loadSavedLocations();
-    }, []);
+    };
 
-    const saveLocation = async (coordinate: any, locationName: string) => {
-        if (!coordinate || !locationName) return;
-
-        const newLocation = {
-            name: locationName,
-            latitude: coordinate.latitude,
-            longitude: coordinate.longitude,
-        };
-
+    const loadSavedLocations = async () => {
         try {
-            const updatedLocations = [...savedLocations, newLocation];
-            setSavedLocations(updatedLocations);
+            const saved = await AsyncStorage.getItem('savedLocations');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                const allLocations = [...initialLocations, ...parsed];
+                setSavedLocations(allLocations);
 
-            await AsyncStorage.setItem(
-                'savedLocations',
-                JSON.stringify(updatedLocations.filter(loc => !initialLocations.includes(loc)))
-            );
+                const weathers = await Promise.all(
+                    allLocations.map(async (location) => {
+                        try {
+                            const response = await axios.get(
+                                `https://api.openweathermap.org/data/2.5/weather?lat=${location.latitude}&lon=${location.longitude}&appid=1c856f19750baa7aac089533da337ecb&units=metric`
+                            );
+                            return {
+                                id: `${location.latitude},${location.longitude}`,
+                                data: {
+                                    icon: response.data.weather[0].icon,
+                                    temp: response.data.main.temp
+                                }
+                            };
+                        } catch (error) {
+                            console.error("Erreur météo pour", location.name, error);
+                            return null;
+                        }
+                    })
+                );
 
-            alert('Position enregistrée avec succès !');
+                const weatherMap = weathers.reduce((acc, curr) => {
+                    if (curr) acc[curr.id] = curr.data;
+                    return acc;
+                }, {} as LocationWeather);
+
+                setLocationsWeather(weatherMap);
+            }
         } catch (error) {
-            console.error('Erreur de sauvegarde:', error);
-            alert('Erreur lors de la sauvegarde');
+            console.error('Erreur de chargement:', error);
         }
     };
 
-    const handleMapPress = async (event: { nativeEvent: { coordinate: any; }; }) => {
-        const { coordinate } = event.nativeEvent;
-        setSelectedCoordinate(coordinate);
+    useEffect(() => {
+        const {latitude, longitude} = params;
 
+        if (latitude && longitude) {
+            const lat = parseFloat(String(latitude));
+            const lon = parseFloat(String(longitude));
+
+            if (!isNaN(lat) && !isNaN(lon)) {
+                const coordinate = {latitude: lat, longitude: lon};
+                setSelectedCoordinate(coordinate);
+                fetchWeatherForLocation(coordinate);
+
+                if (mapRef.current) {
+                    mapRef.current.animateToRegion({
+                        latitude: lat,
+                        longitude: lon,
+                        latitudeDelta: 0.0922,
+                        longitudeDelta: 0.0421,
+                    }, 1000);
+                }
+            }
+        }
+        loadSavedLocations();
+    }, [params.latitude, params.longitude]);
+
+    const fetchWeatherForLocation = async (coordinate: { latitude: number, longitude: number }) => {
         try {
             const currentResponse = await axios.get(
                 `https://api.openweathermap.org/data/2.5/weather?lat=${coordinate.latitude}&lon=${coordinate.longitude}&appid=1c856f19750baa7aac089533da337ecb&units=metric&lang=fr`
@@ -77,6 +117,53 @@ export default function HomeScreen() {
         }
     };
 
+    const saveLocation = async (coordinate: any, locationName: string) => {
+        if (!coordinate || !locationName) return;
+
+        const newLocation = {
+            name: locationName,
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude,
+        };
+
+        try {
+            const updatedLocations = [...savedLocations, newLocation];
+            setSavedLocations(updatedLocations);
+
+            await AsyncStorage.setItem(
+                'savedLocations',
+                JSON.stringify(updatedLocations.filter(loc => !initialLocations.includes(loc)))
+            );
+
+            try {
+                const response = await axios.get(
+                    `https://api.openweathermap.org/data/2.5/weather?lat=${coordinate.latitude}&lon=${coordinate.longitude}&appid=1c856f19750baa7aac089533da337ecb&units=metric`
+                );
+
+                setLocationsWeather(prev => ({
+                    ...prev,
+                    [`${coordinate.latitude},${coordinate.longitude}`]: {
+                        icon: response.data.weather[0].icon,
+                        temp: response.data.main.temp
+                    }
+                }));
+            } catch (error) {
+                console.error("Erreur météo pour la nouvelle position", error);
+            }
+
+            alert('Position enregistrée avec succès !');
+        } catch (error) {
+            console.error('Erreur de sauvegarde:', error);
+            alert('Erreur lors de la sauvegarde');
+        }
+    };
+
+    const handleMapPress = async (event: { nativeEvent: { coordinate: any; }; }) => {
+        const { coordinate } = event.nativeEvent;
+        setSelectedCoordinate(coordinate);
+        fetchWeatherForLocation(coordinate);
+    };
+
     const getValueColor = (value: number, type: 'temp' | 'humidity') => {
         if (type === 'temp') {
             if (value < 10) return '#2196F3';
@@ -91,6 +178,30 @@ export default function HomeScreen() {
         }
 
         return '#000';
+    };
+
+    const getWeatherIcon = (iconCode: string) => {
+        const iconMap: { [key: string]: any } = {
+            '01d': require('@/assets/images/clear.png'),
+            '01n': require('@/assets/images/clear-night.png'),
+            '02d': require('@/assets/images/partly-cloudy.png'),
+            '02n': require('@/assets/images/partly-cloudy-night.png'),
+            '03d': require('@/assets/images/cloudy.png'),
+            '03n': require('@/assets/images/cloudy.png'),
+            '04d': require('@/assets/images/cloudy.png'),
+            '04n': require('@/assets/images/cloudy.png'),
+            '09d': require('@/assets/images/rain.png'),
+            '09n': require('@/assets/images/rain.png'),
+            '10d': require('@/assets/images/rain.png'),
+            '10n': require('@/assets/images/rain.png'),
+            '11d': require('@/assets/images/thunderstorm.png'),
+            '11n': require('@/assets/images/thunderstorm.png'),
+            '13d': require('@/assets/images/snow.png'),
+            '13n': require('@/assets/images/snow.png'),
+            '50d': require('@/assets/images/mist.png'),
+            '50n': require('@/assets/images/mist.png'),
+        };
+        return iconMap[iconCode] || require('@/assets/images/default.png');
     };
 
     const prepareChartData = () => {
@@ -126,11 +237,18 @@ export default function HomeScreen() {
             >
                 <View style={styles.header}>
                     <Text style={styles.title}>MétéOù</Text>
+                    <TouchableOpacity
+                        style={styles.refreshButton}
+                        onPress={refreshPage}
+                    >
+                        <Ionicons name="refresh" size={24} color="white" />
+                    </TouchableOpacity>
                 </View>
 
                 <ScrollView contentContainerStyle={styles.content}>
                     <View style={styles.mapContainer}>
                         <MapView
+                            ref={mapRef}
                             style={styles.map}
                             initialRegion={{
                                 latitude: 48.8566,
@@ -140,18 +258,47 @@ export default function HomeScreen() {
                             }}
                             onPress={handleMapPress}
                         >
-                            {savedLocations.map((location: any, index: any) => (
-                                <Marker
-                                    key={index}
-                                    coordinate={{ latitude: location.latitude, longitude: location.longitude }}
-                                    title={location.name}
-                                />
-                            ))}
+                            {savedLocations.map((location: any, index: any) => {
+                                const locationId = `${location.latitude},${location.longitude}`;
+                                const weather = locationsWeather[locationId];
+
+                                return (
+                                    <Marker
+                                        key={index}
+                                        coordinate={{ latitude: location.latitude, longitude: location.longitude }}
+                                        title={location.name}
+                                    >
+                                        <View style={styles.markerContainer}>
+                                            {weather ? (
+                                                <>
+                                                    <Image
+                                                        source={getWeatherIcon(weather.icon)}
+                                                        style={styles.weatherIcon}
+                                                    />
+                                                    <Text style={styles.markerTemp}>{Math.round(weather.temp)}°</Text>
+                                                </>
+                                            ) : (
+                                                <Image
+                                                    source={require('@/assets/images/default.png')}
+                                                    style={styles.defaultMarker}
+                                                />
+                                            )}
+                                        </View>
+                                    </Marker>
+                                );
+                            })}
                             {selectedCoordinate && (
                                 <Marker
                                     coordinate={selectedCoordinate}
                                     title="Position sélectionnée"
-                                />
+                                >
+                                    <View style={styles.selectedMarker}>
+                                        <Image
+                                            source={require('@/assets/images/default.png')}
+                                            style={styles.selectedMarkerIcon}
+                                        />
+                                    </View>
+                                </Marker>
                             )}
                         </MapView>
                     </View>
@@ -204,8 +351,12 @@ export default function HomeScreen() {
                                     </View>
                                 </View>
                             </View>
-                            <Button title="Enregistrer la position" onPress={() => saveLocation(selectedCoordinate, weatherData.current.name)} />
-
+                            <View style={styles.saveButton}>
+                                <Button
+                                    title="Enregistrer la position"
+                                    onPress={() => saveLocation(selectedCoordinate, weatherData.current.name)}
+                                />
+                            </View>
                             <Text style={styles.sectionTitle}>Prévisions sur 24h</Text>
 
                             {chartData && (
@@ -281,6 +432,9 @@ const styles = StyleSheet.create({
     header: {
         paddingVertical: 20,
         alignItems: 'center',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
     },
     title: {
         fontSize: 24,
@@ -288,12 +442,18 @@ const styles = StyleSheet.create({
         color: 'white',
         paddingTop: 40
     },
+    refreshButton: {
+        padding: 10,
+        position: 'absolute',
+        right: 16,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        borderRadius: 20,
+    },
     content: {
         padding: 16,
     },
     gradient: {
         flex: 1,
-        padding: 1,
     },
     mapContainer: {
         height: 400,
@@ -361,4 +521,42 @@ const styles = StyleSheet.create({
         fontSize: 12,
         textAlign: 'center',
     },
+    saveButton: {
+        marginTop: 10,
+        marginBottom: 30,
+    },
+    markerContainer: {
+        alignItems: 'center',
+        width: 35,
+        transform: [{ translateY: 12 }],
+    },
+    weatherIcon: {
+        width: 20,
+        height: 20,
+        resizeMode: 'contain',
+        transform: [{scale: 1.5}],
+    },
+    markerTemp: {
+        color: '#fff',
+        fontWeight: 'bold',
+        fontSize: 14,
+        marginTop: -13,
+        marginRight: -16,
+        textShadowColor: 'rgba(0, 0, 0, 1)',
+        textShadowOffset: { width: 1, height: 1 },
+        textShadowRadius: 2,
+    },
+    defaultMarker: {
+        width: 40,
+        height: 40,
+        resizeMode: 'contain',
+    },
+    selectedMarker: {
+        alignItems: 'center',
+    },
+    selectedMarkerIcon: {
+        width: 40,
+        height: 40,
+        resizeMode: 'contain',
+    }
 });

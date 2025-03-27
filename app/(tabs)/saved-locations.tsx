@@ -1,8 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, FlatList, ScrollView, Alert } from 'react-native';
+import { 
+    StyleSheet, 
+    View, 
+    Text, 
+    TouchableOpacity, 
+    FlatList, 
+    ScrollView, 
+    Alert, 
+    RefreshControl,
+    ActivityIndicator 
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import savedLocationsData from '@/assets/json/saved-locations.json';
+import { Ionicons } from '@expo/vector-icons';
 
 interface SavedLocation {
     name: string;
@@ -12,33 +24,143 @@ interface SavedLocation {
 
 export default function SavedLocationsScreen() {
     const [savedLocations, setSavedLocations] = useState<SavedLocation[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [selectingLocationId, setSelectingLocationId] = useState<string | null>(null);
 
+    // Load saved locations on initial mount
     useEffect(() => {
-        // Load saved locations from JSON file
-        // In a real app, this would be loaded from AsyncStorage or a database
-        setSavedLocations(savedLocationsData);
+        loadSavedLocations();
     }, []);
+    
+    // Also reload when the screen comes back into focus
+    useFocusEffect(
+        React.useCallback(() => {
+            loadSavedLocations();
+        }, [])
+    );
+
+    const loadSavedLocations = async () => {
+        try {
+            setIsLoading(true);
+            
+            // Get saved locations from AsyncStorage
+            const savedLocationsStr = await AsyncStorage.getItem('savedLocations');
+            const asyncStorageLocations = savedLocationsStr ? JSON.parse(savedLocationsStr) : [];
+            
+            // Combine with default locations from JSON file, avoiding duplicates
+            const combinedLocations = [...savedLocationsData];
+            
+            asyncStorageLocations.forEach((location: SavedLocation) => {
+                const isDuplicate = combinedLocations.some(
+                    loc => loc.latitude === location.latitude && loc.longitude === location.longitude
+                );
+                
+                if (!isDuplicate) {
+                    combinedLocations.push(location);
+                }
+            });
+            
+            setSavedLocations(combinedLocations);
+        } catch (error) {
+            console.error('Erreur de chargement:', error);
+            Alert.alert("Erreur", "Impossible de charger les emplacements sauvegardés.");
+        } finally {
+            setIsLoading(false);
+            setRefreshing(false);
+        }
+    };
+
+    const handleRefresh = () => {
+        setRefreshing(true);
+        loadSavedLocations();
+    };
 
     const handleAddNewLocation = () => {
-        // Navigate to the search cities screen
         router.push('/villes');
     };
 
     const handleSelectLocation = (location: SavedLocation) => {
-        // In a real app, you might want to do something when a location is selected
-        Alert.alert('Location Selected', `${location.name}\nLat: ${location.latitude}, Lon: ${location.longitude}`);
+        const locationId = `${location.name}-${location.latitude}-${location.longitude}`;
+        setSelectingLocationId(locationId);
+        setTimeout(() => {
+            router.push({
+                pathname: '/',
+                params: { 
+                    latitude: location.latitude.toString(), 
+                    longitude: location.longitude.toString(),
+                    name: location.name 
+                }
+            });
+            setSelectingLocationId(null);
+        }, 300);
+    };
+    
+    const handleDeleteLocation = async (location: SavedLocation) => {
+        try {
+            const isDefaultLocation = savedLocationsData.some(
+                loc => loc.latitude === location.latitude && loc.longitude === location.longitude
+            );
+            
+            if (isDefaultLocation) {
+                Alert.alert("Information", "Les emplacements par défaut ne peuvent pas être supprimés.");
+                return;
+            }
+            
+            Alert.alert(
+                "Confirmation",
+                `Voulez-vous supprimer ${location.name} de vos favoris ?`,
+                [
+                    { text: "Annuler", style: "cancel" },
+                    {
+                        text: "Supprimer",
+                        style: "destructive",
+                        onPress: async () => {
+                            const savedLocationsStr = await AsyncStorage.getItem('savedLocations');
+                            const currentLocations = savedLocationsStr ? JSON.parse(savedLocationsStr) : [];
+                            const updatedLocations = currentLocations.filter(
+                                (loc: SavedLocation) => 
+                                    loc.latitude !== location.latitude || loc.longitude !== location.longitude
+                            );
+                            await AsyncStorage.setItem('savedLocations', JSON.stringify(updatedLocations));
+                            loadSavedLocations();
+                        }
+                    }
+                ]
+            );
+        } catch (error) {
+            console.error('Erreur de suppression:', error);
+            Alert.alert("Erreur", "Impossible de supprimer cet emplacement.");
+        }
     };
 
-    const renderLocationItem = ({ item }: { item: SavedLocation }) => (
-        <TouchableOpacity 
-            style={styles.locationItem}
-            onPress={() => handleSelectLocation(item)}
-        >
-            <Text style={styles.locationName}>{item.name}</Text>
-            <Text style={styles.coordinates}>Latitude: {item.latitude}</Text>
-            <Text style={styles.coordinates}>Longitude: {item.longitude}</Text>
-        </TouchableOpacity>
-    );
+    const renderLocationItem = ({ item }: { item: SavedLocation }) => {
+        const locationId = `${item.name}-${item.latitude}-${item.longitude}`;
+        const isSelecting = selectingLocationId === locationId;
+        
+        return (
+            <TouchableOpacity 
+                style={[
+                    styles.locationItem, 
+                    isSelecting && styles.locationItemSelected
+                ]}
+                onPress={() => handleSelectLocation(item)}
+                onLongPress={() => handleDeleteLocation(item)}
+                disabled={isSelecting}
+            >
+                <Text style={styles.locationName}>{item.name}</Text>
+                <Text style={styles.coordinates}>Latitude: {item.latitude}</Text>
+                <Text style={styles.coordinates}>Longitude: {item.longitude}</Text>
+                <Text style={styles.hintText}>Appuyez longuement pour supprimer</Text>
+                
+                {isSelecting && (
+                    <View style={styles.selectingIndicator}>
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                    </View>
+                )}
+            </TouchableOpacity>
+        );
+    };
 
     return (
         <View style={styles.container}>
@@ -48,9 +170,28 @@ export default function SavedLocationsScreen() {
             >
                 <View style={styles.header}>
                     <Text style={styles.title}>MétéOù</Text>
+                    <TouchableOpacity 
+                        style={styles.refreshButton}
+                        onPress={handleRefresh}
+                        disabled={isLoading || refreshing}
+                    >
+                        <Ionicons name="refresh" size={24} color="white" />
+                    </TouchableOpacity>
                 </View>
 
-                <ScrollView contentContainerStyle={styles.content}>
+                <ScrollView 
+                    contentContainerStyle={styles.content}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={handleRefresh}
+                            colors={["#ffffff"]}
+                            tintColor="#ffffff"
+                            title="Actualisation..."
+                            titleColor="#ffffff"
+                        />
+                    }
+                >
                     <Text style={styles.sectionTitle}>Villes Enregistrées</Text>
                     
                     <TouchableOpacity 
@@ -60,13 +201,15 @@ export default function SavedLocationsScreen() {
                         <Text style={styles.addButtonText}>+ Ajouter une nouvelle ville</Text>
                     </TouchableOpacity>
 
-                    {savedLocations.length === 0 ? (
+                    {isLoading ? (
+                        <ActivityIndicator size="large" color="#FFFFFF" style={styles.loader} />
+                    ) : savedLocations.length === 0 ? (
                         <Text style={styles.emptyText}>Aucune ville enregistrée</Text>
                     ) : (
                         <FlatList
                             data={savedLocations}
                             renderItem={renderLocationItem}
-                            keyExtractor={(item, index) => `${item.name}-${item.latitude}-${item.longitude}`}
+                            keyExtractor={(item, index) => `${item.name}-${item.latitude}-${item.longitude}-${index}`}
                             style={styles.list}
                             scrollEnabled={false}
                         />
@@ -85,15 +228,26 @@ const styles = StyleSheet.create({
     header: {
         paddingVertical: 20,
         alignItems: 'center',
+        flexDirection: 'row',
+        justifyContent: 'center',
+        paddingTop: 40,
+        paddingHorizontal: 20,
     },
     title: {
         fontSize: 24,
         fontWeight: 'bold',
         color: 'white',
-        paddingTop: 40
+    },
+    refreshButton: {
+        position: 'absolute',
+        right: 20,
+        top: 40,
+        padding: 8,
+        borderRadius: 20,
     },
     content: {
         padding: 16,
+        paddingBottom: 40,
     },
     gradient: {
         flex: 1,
@@ -131,6 +285,22 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         borderLeftWidth: 4,
         borderLeftColor: '#2196F3',
+        position: 'relative',
+    },
+    locationItemSelected: {
+        backgroundColor: 'rgba(33, 150, 243, 0.4)',
+        borderLeftColor: '#FFFFFF',
+    },
+    selectingIndicator: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.2)',
+        borderRadius: 8,
     },
     locationName: {
         fontSize: 17,
@@ -148,4 +318,14 @@ const styles = StyleSheet.create({
         color: 'rgba(255,255,255,0.7)',
         fontSize: 16
     },
+    hintText: {
+        fontSize: 12,
+        color: 'rgba(255,255,255,0.6)',
+        fontStyle: 'italic',
+        marginTop: 5,
+        textAlign: 'right'
+    },
+    loader: {
+        marginTop: 30
+    }
 });
