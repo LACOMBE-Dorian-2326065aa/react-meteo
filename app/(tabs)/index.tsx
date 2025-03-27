@@ -541,6 +541,7 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         fontSize: 14,
         marginTop: -13,
+        marginRight: -16,
         textShadowColor: 'rgba(0, 0, 0, 1)',
         textShadowOffset: { width: 1, height: 1 },
         textShadowRadius: 2,
