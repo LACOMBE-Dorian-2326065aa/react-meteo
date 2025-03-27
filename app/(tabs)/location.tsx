@@ -1,120 +1,62 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, PermissionsAndroid, Platform, Button, Linking } from 'react-native';
-import Geolocation from 'react-native-geolocation-service';
+import { View, Text, StyleSheet, Button } from 'react-native';
+import * as Location from 'expo-location';
 
-export default function LocationScreen() {
-    const [position, setPosition] = useState<any>(null);
+const LocationScreen = () => {
+    const [location, setLocation] = useState<any>(null);
     const [error, setError] = useState<any>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [loading, setLoading] = useState<any>(true);
 
-    const requestLocationPermission = async () => {
+    const getCurrentLocation = async () => {
+        setLoading(true);
+        setError(null);
+
         try {
-            let granted;
-            if (Platform.OS === 'android') {
-                granted = await PermissionsAndroid.request(
-                    PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
-                );
-                return granted === PermissionsAndroid.RESULTS.GRANTED;
-            }
-        } catch (err) {
-            console.warn(err);
-            return false;
-        }
-    };
-
-    const checkLocationEnabled = async () => {
-        try {
-            const enabled = await Geolocation.getProviderStatus();
-            if (!enabled.locationEnabled) {
-                setError("Activez le service de localisation dans les paramètres du téléphone");
-                setIsLoading(false);
-                return false;
-            }
-            return true;
-        } catch (error) {
-            setError("Impossible de vérifier l'état de la localisation");
-            setIsLoading(false);
-            return false;
-        }
-    };
-
-    const getLocation = async () => {
-        try {
-            setIsLoading(true);
-            setError(null);
-
-            const isLocationEnabled = await checkLocationEnabled();
-            if (!isLocationEnabled) return;
-
-            const hasPermission = await requestLocationPermission();
-
-            if (!hasPermission) {
-                setError("Autorisation requise - Ouvrez les paramètres de l'application pour l'activer");
-                setIsLoading(false);
+            // Demande la permission
+            let { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') {
+                setError('Permission refusée !');
+                setLoading(false);
                 return;
             }
 
-            Geolocation.getCurrentPosition(
-                (pos) => {
-                    setPosition({
-                        latitude: pos.coords.latitude,
-                        longitude: pos.coords.longitude,
-                        accuracy: pos.coords.accuracy,
-                    });
-                    setIsLoading(false);
-                },
-                (err) => {
-                    setError(err.message || "Impossible d'obtenir la position");
-                    setIsLoading(false);
-                },
-                { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-            );
-        } catch (error) {
-            setError("Erreur critique lors de l'accès à la localisation");
-            setIsLoading(false);
+            // Récupère la position
+            let location = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.High,
+            });
+
+            setLocation(location.coords);
+            setLoading(false);
+        } catch (err: any) {
+            setError('Erreur : ' + err.message);
+            setLoading(false);
         }
     };
 
-    const openSettings = () => {
-        Linking.openSettings();
-    };
-
     useEffect(() => {
-        getLocation();
+        getCurrentLocation();
     }, []);
 
     return (
         <View style={styles.container}>
-            {position ? (
-                <View style={styles.coordinatesContainer}>
-                    <Text style={styles.text}>Latitude: {position.latitude.toFixed(6)}</Text>
-                    <Text style={styles.text}>Longitude: {position.longitude.toFixed(6)}</Text>
-                    <Text style={styles.text}>Précision: {position.accuracy.toFixed(0)} mètres</Text>
-                </View>
-            ) : (
-                <Text style={styles.loading}>
-                    {isLoading ? "Chargement de la position..." : "Aucune position disponible"}
-                </Text>
-            )}
-
-            {error && (
+            {loading ? (
+                <Text>Chargement...</Text>
+            ) : error ? (
                 <View style={styles.errorContainer}>
-                    <Text style={styles.errorText}>⚠️ {error}</Text>
-                    <Button
-                        title="Réessayer"
-                        onPress={getLocation}
-                        color="#007AFF"
-                    />
-                    <Button
-                        title="Ouvrir les paramètres"
-                        onPress={openSettings}
-                        color="#FF3B30"
-                    />
+                    <Text style={styles.errorText}>{error}</Text>
+                    <Button title="Réessayer" onPress={getCurrentLocation} />
                 </View>
-            )}
+            ) : location ? (
+                <View style={styles.locationContainer}>
+                    <Text style={styles.title}>Votre position :</Text>
+                    <Text>Latitude: {location.latitude?.toFixed(6)}</Text>
+                    <Text>Longitude: {location.longitude?.toFixed(6)}</Text>
+                    <Text>Précision: {location.accuracy?.toFixed(0)} mètres</Text>
+                </View>
+            ) : null}
         </View>
     );
-}
+};
 
 const styles = StyleSheet.create({
     container: {
@@ -122,38 +64,38 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         padding: 20,
+        backgroundColor: '#fff',
     },
-    coordinatesContainer: {
-        backgroundColor: '#f8f9fa',
+    locationContainer: {
+        alignItems: 'center',
         padding: 20,
         borderRadius: 10,
+        backgroundColor: '#f5f5f5',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 2,
     },
-    text: {
-        fontSize: 18,
-        marginVertical: 5,
+    title: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        marginBottom: 15,
         color: '#333',
     },
-    loading: {
-        fontSize: 18,
-        color: '#666',
+    text: {
+        fontSize: 16,
+        marginVertical: 5,
+        color: '#555',
     },
     errorContainer: {
-        position: 'absolute',
-        bottom: 30,
-        backgroundColor: '#ffebe6',
-        padding: 15,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#ff3b30',
+        alignItems: 'center',
     },
     errorText: {
-        color: '#ff3b30',
+        color: 'red',
+        marginBottom: 15,
         fontSize: 16,
-    }
-
+    },
 });
+
+export default LocationScreen;
