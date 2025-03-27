@@ -1,12 +1,13 @@
 import { StyleSheet, View, Text, ScrollView, Dimensions, TouchableOpacity } from 'react-native';
 import MapView, {Marker} from 'react-native-maps';
-import {useEffect, useState} from "react";
+import {useEffect, useState, useRef} from "react";
 import axios from 'axios';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LineChart } from 'react-native-chart-kit';
 import { Button } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams } from 'expo-router';
 
 let initialLocations = require('@/assets/json/saved-locations.json');
 
@@ -14,6 +15,8 @@ export default function HomeScreen() {
     const [selectedCoordinate, setSelectedCoordinate] = useState<any>(null);
     const [weatherData, setWeatherData] = useState<any>(null)
     const [savedLocations, setSavedLocations] = useState<any[]>(initialLocations);
+    const mapRef = useRef<MapView>(null);
+    const params = useLocalSearchParams();
     
     // Refresh function to reset state and data
     const refreshPage = () => {
@@ -34,10 +37,58 @@ export default function HomeScreen() {
         }
     };
 
-    // Refresh on component mount
+    // Fetch weather data for a specific coordinate
+    const fetchWeatherForLocation = async (coordinate: { latitude: number, longitude: number }) => {
+        try {
+            const currentResponse = await axios.get(
+                `https://api.openweathermap.org/data/2.5/weather?lat=${coordinate.latitude}&lon=${coordinate.longitude}&appid=1c856f19750baa7aac089533da337ecb&units=metric&lang=fr`
+            );
+
+            const forecastResponse = await axios.get(
+                `https://api.openweathermap.org/data/2.5/forecast?lat=${coordinate.latitude}&lon=${coordinate.longitude}&appid=1c856f19750baa7aac089533da337ecb&units=metric&lang=fr`
+            );
+
+            setWeatherData({
+                current: currentResponse.data,
+                forecast: forecastResponse.data
+            });
+
+        } catch (error) {
+            console.error("Erreur lors de la récupération des données météo : ", error);
+        }
+    };
+
+    // Check for URL parameters on component mount and focus
     useEffect(() => {
-        refreshPage();
-    }, []);
+        const { latitude, longitude } = params;
+        
+        if (latitude && longitude) {
+            const lat = parseFloat(String(latitude));
+            const lon = parseFloat(String(longitude));
+            
+            if (!isNaN(lat) && !isNaN(lon)) {
+                const coordinate = { latitude: lat, longitude: lon };
+                
+                // Set selected coordinate
+                setSelectedCoordinate(coordinate);
+                
+                // Fetch weather for this location
+                fetchWeatherForLocation(coordinate);
+                
+                // Center map on this location
+                if (mapRef.current) {
+                    mapRef.current.animateToRegion({
+                        latitude: lat,
+                        longitude: lon,
+                        latitudeDelta: 0.0922,
+                        longitudeDelta: 0.0421,
+                    }, 1000);
+                }
+            }
+        }
+        
+        loadSavedLocations();
+    }, [params.latitude, params.longitude]);
 
     const saveLocation = async (coordinate: any, locationName: string) => {
         if (!coordinate || !locationName) return;
@@ -68,23 +119,7 @@ export default function HomeScreen() {
         const { coordinate } = event.nativeEvent;
         setSelectedCoordinate(coordinate);
 
-        try {
-            const currentResponse = await axios.get(
-                `https://api.openweathermap.org/data/2.5/weather?lat=${coordinate.latitude}&lon=${coordinate.longitude}&appid=1c856f19750baa7aac089533da337ecb&units=metric&lang=fr`
-            );
-
-            const forecastResponse = await axios.get(
-                `https://api.openweathermap.org/data/2.5/forecast?lat=${coordinate.latitude}&lon=${coordinate.longitude}&appid=1c856f19750baa7aac089533da337ecb&units=metric&lang=fr`
-            );
-
-            setWeatherData({
-                current: currentResponse.data,
-                forecast: forecastResponse.data
-            });
-
-        } catch (error) {
-            console.error("Erreur lors de la récupération des données météo : ", error);
-        }
+        fetchWeatherForLocation(coordinate);
     };
 
     const getValueColor = (value: number, type: 'temp' | 'humidity') => {
@@ -147,6 +182,7 @@ export default function HomeScreen() {
                 <ScrollView contentContainerStyle={styles.content}>
                     <View style={styles.mapContainer}>
                         <MapView
+                            ref={mapRef}
                             style={styles.map}
                             initialRegion={{
                                 latitude: 48.8566,
@@ -167,6 +203,7 @@ export default function HomeScreen() {
                                 <Marker
                                     coordinate={selectedCoordinate}
                                     title="Position sélectionnée"
+                                    pinColor="red"
                                 />
                             )}
                         </MapView>

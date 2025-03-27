@@ -26,6 +26,7 @@ export default function SavedLocationsScreen() {
     const [savedLocations, setSavedLocations] = useState<SavedLocation[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [selectingLocationId, setSelectingLocationId] = useState<string | null>(null);
 
     // Load saved locations on initial mount
     useEffect(() => {
@@ -80,20 +81,23 @@ export default function SavedLocationsScreen() {
     };
 
     const handleSelectLocation = (location: SavedLocation) => {
-        // Navigate to the home screen with the selected location
-        router.push({
-            pathname: '/',
-            params: { 
-                latitude: location.latitude.toString(), 
-                longitude: location.longitude.toString(),
-                name: location.name 
-            }
-        });
+        const locationId = `${location.name}-${location.latitude}-${location.longitude}`;
+        setSelectingLocationId(locationId);
+        setTimeout(() => {
+            router.push({
+                pathname: '/',
+                params: { 
+                    latitude: location.latitude.toString(), 
+                    longitude: location.longitude.toString(),
+                    name: location.name 
+                }
+            });
+            setSelectingLocationId(null);
+        }, 300);
     };
     
     const handleDeleteLocation = async (location: SavedLocation) => {
         try {
-            // Check if it's a default location from JSON file
             const isDefaultLocation = savedLocationsData.some(
                 loc => loc.latitude === location.latitude && loc.longitude === location.longitude
             );
@@ -112,20 +116,13 @@ export default function SavedLocationsScreen() {
                         text: "Supprimer",
                         style: "destructive",
                         onPress: async () => {
-                            // Get current saved locations
                             const savedLocationsStr = await AsyncStorage.getItem('savedLocations');
                             const currentLocations = savedLocationsStr ? JSON.parse(savedLocationsStr) : [];
-                            
-                            // Filter out the selected location
                             const updatedLocations = currentLocations.filter(
                                 (loc: SavedLocation) => 
                                     loc.latitude !== location.latitude || loc.longitude !== location.longitude
                             );
-                            
-                            // Save updated list
                             await AsyncStorage.setItem('savedLocations', JSON.stringify(updatedLocations));
-                            
-                            // Refresh the list
                             loadSavedLocations();
                         }
                     }
@@ -137,18 +134,33 @@ export default function SavedLocationsScreen() {
         }
     };
 
-    const renderLocationItem = ({ item }: { item: SavedLocation }) => (
-        <TouchableOpacity 
-            style={styles.locationItem}
-            onPress={() => handleSelectLocation(item)}
-            onLongPress={() => handleDeleteLocation(item)}
-        >
-            <Text style={styles.locationName}>{item.name}</Text>
-            <Text style={styles.coordinates}>Latitude: {item.latitude}</Text>
-            <Text style={styles.coordinates}>Longitude: {item.longitude}</Text>
-            <Text style={styles.hintText}>Appuyez longuement pour supprimer</Text>
-        </TouchableOpacity>
-    );
+    const renderLocationItem = ({ item }: { item: SavedLocation }) => {
+        const locationId = `${item.name}-${item.latitude}-${item.longitude}`;
+        const isSelecting = selectingLocationId === locationId;
+        
+        return (
+            <TouchableOpacity 
+                style={[
+                    styles.locationItem, 
+                    isSelecting && styles.locationItemSelected
+                ]}
+                onPress={() => handleSelectLocation(item)}
+                onLongPress={() => handleDeleteLocation(item)}
+                disabled={isSelecting}
+            >
+                <Text style={styles.locationName}>{item.name}</Text>
+                <Text style={styles.coordinates}>Latitude: {item.latitude}</Text>
+                <Text style={styles.coordinates}>Longitude: {item.longitude}</Text>
+                <Text style={styles.hintText}>Appuyez longuement pour supprimer</Text>
+                
+                {isSelecting && (
+                    <View style={styles.selectingIndicator}>
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                    </View>
+                )}
+            </TouchableOpacity>
+        );
+    };
 
     return (
         <View style={styles.container}>
@@ -273,6 +285,22 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         borderLeftWidth: 4,
         borderLeftColor: '#2196F3',
+        position: 'relative',
+    },
+    locationItemSelected: {
+        backgroundColor: 'rgba(33, 150, 243, 0.4)',
+        borderLeftColor: '#FFFFFF',
+    },
+    selectingIndicator: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.2)',
+        borderRadius: 8,
     },
     locationName: {
         fontSize: 17,
