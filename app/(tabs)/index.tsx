@@ -1,13 +1,35 @@
 import { StyleSheet, View, Text, ScrollView } from 'react-native';
 import MapView, {Marker} from 'react-native-maps';
 import {useState} from "react";
+import savedLocations from '@/assets/json/saved-locations.json';
+import axios from 'axios';
+import Constants from 'expo-constants';
 
 export default function HomeScreen() {
-    const [selectedCoordinate, setSelectedCoordinate] = useState(null);
+    const [selectedCoordinate, setSelectedCoordinate] = useState<any>(null);
+    const [weatherData, setWeatherData] = useState<any>(null);
 
-    const handleMapPress = (event: { nativeEvent: { coordinate: any; }; }) => {
+    const handleMapPress = async (event: { nativeEvent: { coordinate: any; }; }) => {
         const { coordinate } = event.nativeEvent;
         setSelectedCoordinate(coordinate);
+
+        try {
+            const currentResponse = await axios.get(
+                `https://api.openweathermap.org/data/2.5/weather?lat=${coordinate.latitude}&lon=${coordinate.longitude}&appid=1c856f19750baa7aac089533da337ecb&units=metric&lang=fr`
+            );
+
+            const forecastResponse = await axios.get(
+                `https://api.openweathermap.org/data/2.5/forecast?lat=${coordinate.latitude}&lon=${coordinate.longitude}&appid=1c856f19750baa7aac089533da337ecb&units=metric&lang=fr`
+            );
+
+            setWeatherData({
+                current: currentResponse.data,
+                forecast: forecastResponse.data
+            });
+
+        } catch (error) {
+            console.error("Erreur lors de la récupération des données météo:", error);
+        }
     };
 
     return (
@@ -28,6 +50,13 @@ export default function HomeScreen() {
                         }}
                         onPress={handleMapPress}
                     >
+                        {savedLocations.map((location: any, index: any) => (
+                            <Marker
+                                key={index}
+                                coordinate={{ latitude: location.latitude, longitude: location.longitude }}
+                                title={location.name}
+                            />
+                        ))}
                         {selectedCoordinate && (
                             <Marker
                                 coordinate={selectedCoordinate}
@@ -36,6 +65,24 @@ export default function HomeScreen() {
                         )}
                     </MapView>
                 </View>
+
+                {weatherData && (
+                    <View style={styles.weatherContainer}>
+                        <Text style={styles.sectionTitle}>Météo actuelle</Text>
+                        <Text>Température: {weatherData.current.main.temp}°C</Text>
+                        <Text>Conditions: {weatherData.current.weather[0].description}</Text>
+                        <Text>Humidité: {weatherData.current.main.humidity}%</Text>
+
+                        <Text style={styles.sectionTitle}>Prévisions</Text>
+                        {weatherData.forecast.list.slice(0, 5).map((forecast: any, index: any) => (
+                            <View key={index} style={styles.forecastItem}>
+                                <Text>{new Date(forecast.dt * 1000).toLocaleTimeString()}</Text>
+                                <Text>Temp: {forecast.main.temp}°C</Text>
+                                <Text>{forecast.weather[0].description}</Text>
+                            </View>
+                        ))}
+                    </View>
+                )}
             </ScrollView>
         </View>
     );
@@ -69,9 +116,19 @@ const styles = StyleSheet.create({
     map: {
         flex: 1,
     },
+    weatherContainer: {
+        marginTop: 20,
+    },
     sectionTitle: {
         fontSize: 20,
         fontWeight: '600',
         marginBottom: 10,
+        marginTop: 10,
+    },
+    forecastItem: {
+        marginBottom: 10,
+        padding: 10,
+        backgroundColor: '#f0f0f0',
+        borderRadius: 8,
     },
 });
