@@ -3,37 +3,29 @@ import { View, Text, StyleSheet, PermissionsAndroid, Platform, Button, Linking }
 import Geolocation from 'react-native-geolocation-service';
 
 export default function LocationScreen() {
-    const [position, setPosition] = useState<any>(null);
-    const [error, setError] = useState<any>(null);
+    const [position, setPosition] = useState<{
+        latitude: number;
+        longitude: number;
+        accuracy: number;
+    } | null>(null);
+    const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     const requestLocationPermission = async () => {
         try {
-            let granted;
-            if (Platform.OS === 'android') {
-                granted = await PermissionsAndroid.request(
-                    PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
-                );
-                return granted === PermissionsAndroid.RESULTS.GRANTED;
-            }
+            const granted = await PermissionsAndroid.request(
+                PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+                {
+                    title: "Autorisation de localisation",
+                    message: "Cette application a besoin d'accéder à votre position",
+                    buttonNeutral: "Demander plus tard",
+                    buttonNegative: "Annuler",
+                    buttonPositive: "OK"
+                }
+            );
+            return granted === PermissionsAndroid.RESULTS.GRANTED;
         } catch (err) {
-            console.warn(err);
-            return false;
-        }
-    };
-
-    const checkLocationEnabled = async () => {
-        try {
-            const enabled = await Geolocation.getProviderStatus();
-            if (!enabled.locationEnabled) {
-                setError("Activez le service de localisation dans les paramètres du téléphone");
-                setIsLoading(false);
-                return false;
-            }
-            return true;
-        } catch (error) {
-            setError("Impossible de vérifier l'état de la localisation");
-            setIsLoading(false);
+            console.warn("Erreur de permission:", err);
             return false;
         }
     };
@@ -43,13 +35,10 @@ export default function LocationScreen() {
             setIsLoading(true);
             setError(null);
 
-            const isLocationEnabled = await checkLocationEnabled();
-            if (!isLocationEnabled) return;
-
             const hasPermission = await requestLocationPermission();
 
             if (!hasPermission) {
-                setError("Autorisation requise - Ouvrez les paramètres de l'application pour l'activer");
+                setError("Autorisation refusée - Activez la localisation dans les paramètres");
                 setIsLoading(false);
                 return;
             }
@@ -64,13 +53,22 @@ export default function LocationScreen() {
                     setIsLoading(false);
                 },
                 (err) => {
-                    setError(err.message || "Impossible d'obtenir la position");
+                    const errorMessages: { [key: number]: string } = {
+                        1: "Permission refusée dans les paramètres",
+                        2: "GPS désactivé - Activez-le dans les paramètres",
+                        3: "Timeout - Vérifiez votre connexion Internet"
+                    };
+                    setError(errorMessages[err.code] || "Erreur inconnue");
                     setIsLoading(false);
                 },
-                { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+                {
+                    enableHighAccuracy: true,
+                    timeout: 15000,
+                    maximumAge: 10000
+                }
             );
         } catch (error) {
-            setError("Erreur critique lors de l'accès à la localisation");
+            setError("Erreur critique : " + (error instanceof Error ? error.message : JSON.stringify(error)));
             setIsLoading(false);
         }
     };
@@ -89,11 +87,11 @@ export default function LocationScreen() {
                 <View style={styles.coordinatesContainer}>
                     <Text style={styles.text}>Latitude: {position.latitude.toFixed(6)}</Text>
                     <Text style={styles.text}>Longitude: {position.longitude.toFixed(6)}</Text>
-                    <Text style={styles.text}>Précision: {position.accuracy.toFixed(0)} mètres</Text>
+                    <Text style={styles.text}>Précision: ±{position.accuracy.toFixed(0)} mètres</Text>
                 </View>
             ) : (
                 <Text style={styles.loading}>
-                    {isLoading ? "Chargement de la position..." : "Aucune position disponible"}
+                    {isLoading ? "Chargement de la position..." : "Position non disponible"}
                 </Text>
             )}
 
@@ -106,15 +104,16 @@ export default function LocationScreen() {
                         color="#007AFF"
                     />
                     <Button
-                        title="Ouvrir les paramètres"
+                        title="Paramètres"
                         onPress={openSettings}
-                        color="#FF3B30"
+                        color="#34C759"
                     />
                 </View>
             )}
         </View>
     );
 }
+
 
 const styles = StyleSheet.create({
     container: {
