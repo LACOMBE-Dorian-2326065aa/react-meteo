@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, ActivityIndicator, FlatList, ScrollView, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, ActivityIndicator, FlatList, ScrollView, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 
 interface City {
     name: string;
@@ -52,14 +53,41 @@ export default function VillesScreen() {
         }
     };
 
+    const saveLocation = (city: City) => {
+        // In a real app, this would save to AsyncStorage or a database
+        // For now, we'll show an alert to simulate the action
+        Alert.alert(
+            "Ajouter cette ville",
+            `Voulez-vous ajouter ${city.name} à vos emplacements sauvegardés?`,
+            [
+                {
+                    text: "Annuler",
+                    style: "cancel"
+                },
+                { 
+                    text: "Oui", 
+                    onPress: () => {
+                        Alert.alert("Succès", `${city.name} a été ajouté à vos emplacements sauvegardés.`);
+                        router.back();
+                    }
+                }
+            ]
+        );
+    };
+
     const renderCityItem = ({ item }: { item: City }) => (
         <View style={styles.cityItem}>
             <Text style={styles.cityName}>{item.name}, {item.country} {item.state ? `(${item.state})` : ''}</Text>
             <Text style={styles.coordinates}>Latitude: {item.lat}</Text>
             <Text style={styles.coordinates}>Longitude: {item.lon}</Text>
+            <TouchableOpacity 
+                style={styles.saveButton}
+                onPress={() => saveLocation(item)}
+            >
+                <Text style={styles.saveButtonText}>Ajouter aux favoris</Text>
+            </TouchableOpacity>
         </View>
     );
-
 
     return (
         <View style={styles.container}>
@@ -67,8 +95,15 @@ export default function VillesScreen() {
                 colors={['rgba(32,112,238,1)', 'rgba(93,138,191,1)', 'rgba(169,207,214,1)']}
                 style={styles.gradient}
             >
+
                 <View style={styles.header}>
                     <Text style={styles.title}>MétéOù</Text>
+                    <TouchableOpacity 
+                        style={styles.backButton}
+                        onPress={() => router.back()}
+                    >
+                        <Text style={styles.backButtonText}>← Retour</Text>
+                    </TouchableOpacity>
                 </View>
 
                 <ScrollView contentContainerStyle={styles.content}>
@@ -123,6 +158,17 @@ const styles = StyleSheet.create({
     header: {
         paddingVertical: 20,
         alignItems: 'center',
+        position: 'relative',
+    },
+    backButton: {
+        position: 'absolute',
+        left: 16,
+        top: 55,
+    },
+    backButtonText: {
+        color: 'white',
+        fontSize: 16,
+        fontWeight: '600',
     },
     title: {
         fontSize: 24,
@@ -205,6 +251,17 @@ const styles = StyleSheet.create({
     coordinates: {
         fontSize: 14,
         color: 'rgba(255,255,255,0.9)',
+    },
+    saveButton: {
+        backgroundColor: 'rgba(76,175,80,0.8)',
+        padding: 10,
+        borderRadius: 6,
+        marginTop: 10,
+        alignItems: 'center',
+    },
+    saveButtonText: {
+        color: 'white',
+        fontWeight: '600',
     },
     emptyText: {
         textAlign: 'center',

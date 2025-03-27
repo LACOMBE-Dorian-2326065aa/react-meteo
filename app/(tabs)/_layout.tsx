@@ -34,10 +34,10 @@ export default function TabLayout() {
             }}
         />
         <Tabs.Screen
-            name="villes"
+            name="saved-locations"
             options={{
                 title: 'Villes enregistrées',
-                tabBarIcon: ({ color }) => <IconSymbol size={28} name="list.bullet.rectangle.fill" color={color} />,
+                tabBarIcon: ({ color }) => <IconSymbol size={28} name="building.fill" color={color} />,
             }}
         />
       <Tabs.Screen
@@ -45,6 +45,13 @@ export default function TabLayout() {
         options={{
           title: 'Position actuelle',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="location.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="villes"
+        options={{
+          // Hide this screen from the tab bar as it will be accessed through saved-locations
+          href: null,
         }}
       />
     </Tabs>
