@@ -15,6 +15,7 @@ import { router, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import savedLocationsData from '@/assets/json/saved-locations.json';
 import { Ionicons } from '@expo/vector-icons';
+import Header from "@/app/header";
 
 interface SavedLocation {
     name: string;
@@ -168,16 +169,7 @@ export default function SavedLocationsScreen() {
                 colors={['rgba(32,112,238,1)', 'rgba(93,138,191,1)', 'rgba(169,207,214,1)']}
                 style={styles.gradient}
             >
-                <View style={styles.header}>
-                    <Text style={styles.title}>MétéOù</Text>
-                    <TouchableOpacity 
-                        style={styles.refreshButton}
-                        onPress={handleRefresh}
-                        disabled={isLoading || refreshing}
-                    >
-                        <Ionicons name="refresh" size={24} color="white" />
-                    </TouchableOpacity>
-                </View>
+                <Header title="MétéOù" onRefresh={handleRefresh}></Header>
 
                 <ScrollView 
                     contentContainerStyle={styles.content}

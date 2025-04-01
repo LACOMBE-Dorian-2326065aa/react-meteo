@@ -1,6 +1,6 @@
 import { StyleSheet, View, Text, ScrollView, Dimensions, TouchableOpacity, Image } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
-import { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import axios from 'axios';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LineChart } from 'react-native-chart-kit';
@@ -8,6 +8,7 @@ import { Button } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
+import Header from "@/app/header";
 
 let initialLocations = require('@/assets/json/saved-locations.json');
 
@@ -235,15 +236,7 @@ export default function HomeScreen() {
                 colors={['rgba(32,112,238,1)', 'rgba(93,138,191,1)', 'rgba(169,207,214,1)']}
                 style={styles.gradient}
             >
-                <View style={styles.header}>
-                    <Text style={styles.title}>MétéOù</Text>
-                    <TouchableOpacity
-                        style={styles.backButton}
-                        onPress={refreshPage}
-                    >
-                        <Ionicons name="refresh" size={24} color="white" />
-                    </TouchableOpacity>
-                </View>
+                <Header title="MétéOù" onRefresh={refreshPage}></Header>
 
                 <ScrollView contentContainerStyle={styles.content}>
                     <View style={styles.mapContainer}>
