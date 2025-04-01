@@ -238,7 +238,7 @@ export default function HomeScreen() {
                 <View style={styles.header}>
                     <Text style={styles.title}>MétéOù</Text>
                     <TouchableOpacity
-                        style={styles.refreshButton}
+                        style={styles.backButton}
                         onPress={refreshPage}
                     >
                         <Ionicons name="refresh" size={24} color="white" />
@@ -432,22 +432,23 @@ const styles = StyleSheet.create({
     header: {
         paddingVertical: 20,
         alignItems: 'center',
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
+        position: 'relative',
+    },
+    backButton: {
+        position: 'absolute',
+        left: 16,
+        top: 55,
+    },
+    backButtonText: {
+        color: 'white',
+        fontSize: 16,
+        fontWeight: '600',
     },
     title: {
         fontSize: 24,
         fontWeight: 'bold',
         color: 'white',
         paddingTop: 40
-    },
-    refreshButton: {
-        padding: 10,
-        position: 'absolute',
-        right: 16,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        borderRadius: 20,
     },
     content: {
         padding: 16,
