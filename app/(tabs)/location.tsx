@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Button } from 'react-native';
+import {View, Text, StyleSheet, Button, PermissionsAndroid} from 'react-native';
 import * as Location from 'expo-location';
 
 const LocationScreen = () => {
@@ -12,15 +12,22 @@ const LocationScreen = () => {
         setError(null);
 
         try {
-            // Demande la permission
-            let { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== 'granted') {
+            const granted = await PermissionsAndroid.request(
+                PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+                {
+                    title: "Autorisation de localisation",
+                    message: "Cette application a besoin d'accéder à votre position",
+                    buttonNeutral: "Demander plus tard",
+                    buttonNegative: "Annuler",
+                    buttonPositive: "OK"
+                }
+            );
+            if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
                 setError('Permission refusée !');
                 setLoading(false);
                 return;
             }
 
-            // Récupère la position
             let location = await Location.getCurrentPositionAsync({
                 accuracy: Location.Accuracy.High,
             });
