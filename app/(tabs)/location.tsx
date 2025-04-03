@@ -1,16 +1,113 @@
 import React, { useState, useEffect } from 'react';
-import {View, Text, StyleSheet, Button, PermissionsAndroid, ScrollView, Image, Dimensions} from 'react-native';
+import {View, Text, StyleSheet, Button, PermissionsAndroid, ScrollView, Image, Dimensions, Alert} from 'react-native';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import Header from "@/app/header";
 import { Ionicons } from '@expo/vector-icons';
+
+const OPENWEATHERMAP_API_KEY = "1c856f19750baa7aac089533da337ecb";
+
+// Interface pour typer les données météo
+interface WeatherData {
+    temp: number;
+    condition: string;
+    details: {
+        humidity: number;
+        wind: number;
+        pressure: number;
+        feelsLike: number;
+        visibility: number;
+    };
+    forecast: {
+        time: string;
+        temp: number;
+        icon: string;
+    }[];
+}
 
 const LocationScreen = () => {
     const [location, setLocation] = useState<any>(null);
     const [error, setError] = useState<any>(null);
     const [loading, setLoading] = useState<any>(true);
     const [address, setAddress] = useState<any>(null);
-    const [weather, setWeather] = useState<any>(null);
+    const [weather, setWeather] = useState<WeatherData | null>(null);
+
+    // Fonction pour récupérer les données météo depuis l'API OpenWeatherMap
+    const fetchWeatherData = async (latitude: number, longitude: number) => {
+        try {
+            // Récupération des données actuelles
+            const currentResponse = await fetch(
+                `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&units=metric&lang=fr&appid=${OPENWEATHERMAP_API_KEY}`
+            );
+            const currentData = await currentResponse.json();
+            
+            if (currentData.cod && currentData.cod !== 200) {
+                throw new Error(currentData.message || 'Erreur lors de la récupération des données météo');
+            }
+            
+            // Récupération des prévisions
+            const forecastResponse = await fetch(
+                `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&units=metric&lang=fr&appid=${OPENWEATHERMAP_API_KEY}`
+            );
+            const forecastData = await forecastResponse.json();
+            
+            if (forecastData.cod && forecastData.cod !== '200') {
+                throw new Error(forecastData.message || 'Erreur lors de la récupération des prévisions');
+            }
+            
+            // Transformer les données au format attendu par l'application
+            const weatherData: WeatherData = {
+                temp: Math.round(currentData.main.temp),
+                condition: currentData.weather[0].description.charAt(0).toUpperCase() + currentData.weather[0].description.slice(1),
+                details: {
+                    humidity: currentData.main.humidity,
+                    wind: Math.round(currentData.wind.speed * 3.6), // Conversion m/s en km/h
+                    pressure: currentData.main.pressure,
+                    feelsLike: Math.round(currentData.main.feels_like),
+                    visibility: Math.round(currentData.visibility / 1000), // Conversion m en km
+                },
+                forecast: forecastData.list.slice(0, 6).map((item: any) => {
+                    const date = new Date(item.dt * 1000);
+                    const hours = date.getHours();
+                    return {
+                        time: `${hours}h`,
+                        temp: Math.round(item.main.temp),
+                        icon: mapWeatherIconToApp(item.weather[0].icon),
+                    };
+                })
+            };
+            
+            return weatherData;
+        } catch (error: any) {
+            console.error('Erreur API météo:', error);
+            throw error;
+        }
+    };
+    
+    // Fonction pour mapper les codes d'icônes OpenWeatherMap aux icônes de l'app
+    const mapWeatherIconToApp = (iconCode: string): string => {
+        const iconMapping: {[key: string]: string} = {
+            '01d': 'clear',
+            '01n': 'clear-night',
+            '02d': 'partly-cloudy',
+            '02n': 'partly-cloudy',
+            '03d': 'cloudy',
+            '03n': 'cloudy',
+            '04d': 'cloudy',
+            '04n': 'cloudy',
+            '09d': 'rain',
+            '09n': 'rain',
+            '10d': 'rain',
+            '10n': 'rain',
+            '11d': 'thunderstorm',
+            '11n': 'thunderstorm',
+            '13d': 'snow',
+            '13n': 'snow',
+            '50d': 'mist',
+            '50n': 'mist',
+        };
+        return iconMapping[iconCode] || 'clear';
+    };
 
     const getCurrentLocation = async () => {
         setLoading(true);
@@ -48,26 +145,16 @@ const LocationScreen = () => {
                 setAddress(addressResponse[0]);
             }
 
-            const mockWeather = {
-                temp: 22,
-                condition: 'Ensoleillé',
-                details: {
-                    humidity: 65,
-                    wind: 12,
-                    pressure: 1012,
-                    feelsLike: 24,
-                    visibility: 10
-                },
-                forecast: [
-                    { time: '12h', temp: 22, icon: 'clear' },
-                    { time: '15h', temp: 24, icon: 'partly-cloudy' },
-                    { time: '18h', temp: 20, icon: 'rain' },
-                    { time: '21h', temp: 18, icon: 'clear-night' },
-                    { time: '00h', temp: 16, icon: 'cloudy' },
-                    { time: '03h', temp: 15, icon: 'mist' },
-                ]
-            };
-            setWeather(mockWeather);
+            // Appel à l'API OpenWeatherMap
+            try {
+                const weatherData = await fetchWeatherData(
+                    location.coords.latitude,
+                    location.coords.longitude
+                );
+                setWeather(weatherData);
+            } catch (weatherError: any) {
+                setError('Erreur données météo : ' + weatherError.message);
+            }
 
             setLoading(false);
         } catch (err: any) {
@@ -143,7 +230,7 @@ const LocationScreen = () => {
                         <View style={styles.weatherSection}>
                             <View style={styles.weatherMain}>
                                 <Image
-                                    source={getWeatherImage('clear')}
+                                    source={getWeatherImage(weather?.forecast[0]?.icon || 'clear')}
                                     style={styles.weatherImage}
                                 />
                                 <Text style={styles.temperatureText}>
